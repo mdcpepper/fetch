@@ -47,7 +47,7 @@ There's also `craft.fetch.entries`, `craft.fetch.categories` etc, that work the 
 The `craft.fetch.exists` function is just a helper that checks for the existance of the Entry and Field IDs in the array supplied as the first argument, so you don't have to use some horrible if statement in twig, like:
 
 ```twig
-{% if (entry.id in images|keys) and (3 in images[entry.id]|keys) and images[entry.id][3]|length) %}
+{% if (entry.id in images|keys) and (3 in images[entry.id]|keys) and images[entry.id][3]|length %}
     {# there are related elements for this entry #}
 {% endif %}
 ```
