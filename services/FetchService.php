@@ -6,43 +6,112 @@ namespace Craft;
  *
  * @author    Mike Pepper, Enovate Design Ltd <mike.pepper@enovate.co.uk>
  * @copyright Copyright (c) 2015, Enovate Design, Ltd.
+ * @license   MIT
+ * @package   craft.plugins.fetch.services
  * @since     0.1.0
  */
 class FetchService extends BaseApplicationComponent
 {
 	/**
 	 * Returns an array of {$elementType}Model instances related to the
-	 * elements with the IDs passed in as the second parameter.
+	 * elements passed in as the second parameter.
 	 *
 	 * You can optionally restrict the results to particular fields, and override the source
 	 * locale.
 	 *
-	 * @param array              $elementType   The element type for the relation
-	 * @param array              $sourceIds     An array of source element IDs
-	 * @param string|array|null  $fieldHandles  An optional field ID, or array of field IDs
-	 * @param string             $sourceLocale  An optional locale ID
+	 * @since 0.1.0
+	 *
+	 * @param array              $elementType     The element type for the relation
+	 * @param array              $sourceElements  An array of source elements
+	 * @param string|array|null  $fieldHandles    An optional string or array of field handles
+	 * @param string|null        $sourceLocale    An optional locale ID
 	 *
 	 * @return array             An array of BaseElementModel instances, populated from the results
 	 */
-	public function elements($elementType, array $sourceIds, $fieldHandles = null, $sourceLocale = null)
+	public function elements($elementType, array &$sourceElements, $fieldHandles = null, $sourceLocale = null)
 	{
-		// This allows for passing an array of BaseElementModels, or an array
-		// of IDs for the source
-		$sourceIds = $this->getIds($sourceIds);
+		$sourceElementsById = array();
+		$targetIds          = array();
+
+		// Cast the field handles to an array
+		$fieldHandles = ArrayHelper::stringToArray($fieldHandles);
+
+		// reorder the source elements by ID
+		foreach($sourceElements as $sourceElement)
+		{
+			$sourceElementsById[$sourceElement->id] = $sourceElement;
+		}
+
+		// Attach the behavior to each of the source elements
+		foreach($sourceElementsById as $sourceElement)
+		{
+			$sourceElement->attachBehavior('fetched_elements', new Fetch_FetchedElementsBehavior());
+		}
+
+		// Perform the first query to get the information from the craft_relations table
+		$relations = $this->_getRelations($sourceElementsById, $fieldHandles, $sourceLocale);
+
+		// Collect the targetIds so we can fetch all the assets in one go later on
+		$targetIds = array_map(function($relation){ return $relation['targetId']; }, $relations);
+
+		// Perform the second query to fetch all the related elements by their IDs
+		$elements = craft()->elements->getCriteria($elementType)
+						->id($targetIds)
+						->indexBy('id')
+						->locale($sourceLocale)
+						->find();
+
+		// Add each related element to it's source element, using the Fetch_FetchedElementsBehavior
+		foreach($relations as &$relation)
+		{
+			$sourceId    = $relation['sourceId'];
+			$fieldHandle = $relation['handle'];
+			$targetId    = $relation['targetId'];
+			$sortOrder   = ((int) $relation['sortOrder']) - 1;
+
+			$sourceElementsById[$sourceId]->addFetchedElement($elements[$targetId], $fieldHandle, $sortOrder);
+			unset($sourceId, $fieldHandle, $targetId, $sourceOrder, $relation);
+		}
+
+		// Return the modified entries in their original order
+		foreach($sourceElements as &$sourceElement)
+		{
+			$sourceElement = $sourceElementsById[$sourceElement->id];
+			unset($sourceElementsById[$sourceElement->id]);
+		}
+
+		return $sourceElements;
+	}
+
+	/**
+	 * Returns the results of the database query that fetches all the relations information from the
+	 * `craft_relations` table for the source elements supplied as the first parameter, and
+	 * optionally by an array of field handles and a source locale.
+	 *
+	 * @since 1.0.0
+	 *
+	 * @param array       $sourceElementsByID  An array of source element models, indexed by ID
+	 * @param array       $fieldHandles
+	 * @param string|null $sourceLocale
+	 *
+	 * @return array
+	 */
+	private function _getRelations(array $sourceElementsById, array $fieldHandles = array(), $sourceLocale = null)
+	{
+		$sourceElementIds = array_keys($sourceElementsById);
 
 		$query = craft()->db->createCommand()
 			->from('relations relations')
 			->select('fieldId')
 			->addSelect('sourceId, targetId, sortOrder, fields.handle')
 			->join('fields fields', 'fields.id=relations.fieldId')
-			->where(array('in', 'sourceId', $sourceIds));
+			->where(array('in', 'sourceId', $sourceElementIds));
 
-		if (is_string($fieldHandles))
+		if (1 == count($fieldHandles))
 		{
-			$query = $query->andWhere(array('fields.handle' => $fieldHandles));
+			$query = $query->andWhere(array('fields.handle' => $fieldHandles[0]));
 		}
-
-		if (is_array($fieldHandles))
+		elseif (!empty($fieldHandles))
 		{
 			$query = $query->andWhere(array('in', 'fields.handle', $fieldHandles));
 		}
@@ -52,87 +121,6 @@ class FetchService extends BaseApplicationComponent
 			$query = $query->andWhere(array('sourceLocale' => $sourceLocale));
 		}
 
-		// This first query returns everything we need to know about
-		// what elements are involved. (1st query)
-		$relations = $query->queryAll();
-
-		$targetIds = array();
-
-		// Collect the targetIds so we can fetch all the assets in one go later on
-		$targetIds = array_map(function($relation){ return $relation['targetId']; }, $relations);
-
-		// Fetch all the related elements (2nd query)
-		$elements = craft()->elements->getCriteria($elementType)
-						->id($targetIds)
-						->locale($sourceLocale)
-						->indexBy('id')
-						->find();
-
-		// Now we need to match the related elements to their sources and fields,
-		// and return them in their default sort order.
-
-		$results = array();
-
-		foreach($relations as $relation)
-		{
-			$sourceId    = $relation['sourceId'];
-			$fieldHandle = $relation['handle'];
-			$targetId    = $relation['targetId'];
-			$sortOrder   = ((int) $relation['sortOrder']) - 1;
-
-			$results[$sourceId][$fieldHandle][$sortOrder] = $elements[$targetId];
-		}
-
-		return $results;
-	}
-
-	/**
-	 * Returns an array of elements' IDs.
-	 *
-	 * @param  array $elements An array of elements
-	 * @return array           An array of those elements' IDs
-	 */
-	public function getIds(array $elements)
-	{
-		// If the first element is an integer, we're already dealing
-		// with an array of IDs, so return it immediately
-		if (!empty($elements) && is_int($elements[0]))
-		{
-			return $elements;
-		}
-
-		$elementIds = array();
-
-		foreach ($elements as $element)
-		{
-			$elementIds[] = $element->id;
-		}
-
-		return $elementIds;
-	}
-
-	/**
-	 * Returns whether there are any related elements for the given source element ID and optional
-	 * field ID.
-	 *
-	 * @param  int  $sourceElementId
-	 * @param  int  $fieldId
-	 * @return bool
-	 */
-	public function exists(array $collection, $sourceElementId, $fieldHandle = null)
-	{
-		// if sourceElementId doesnt exist, or there's nothing related, return false
-		if (!array_key_exists($sourceElementId, $collection) || empty($collection[$sourceElementId]))
-		{
-			return false;
-		}
-
-		// if the fieldID is set but doesn't exist or is empty, return false
-		if ($fieldHandle && (!array_key_exists($fieldHandle, $collection[$sourceElementId]) || empty($collection[$sourceElementId][$fieldHandle])))
-		{
-			return false;
-		}
-
-		return true;
+		return $query->queryAll();
 	}
 }

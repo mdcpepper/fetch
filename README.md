@@ -1,56 +1,120 @@
 # Fetch Craft Plugin
 
-A proof-of-concept plugin for basic eager loading of relationships in Craft.
+A plugin for basic eager loading of relationships in Craft.
 
-NOTE: This is really just an experiment, hasn't been run in production anywhere, is kind of awkward,
-and the actual performance gain you might get depends on a lot of other factors too. Please feel free to fork and improve!
+NOTE: This is experimental, hasn't been run in production anywhere, and the actual
+performance gain you might get depends on a few other factors too so YMMV. Please feel free to fork and
+improve!
 
-## Example
+## Installation
 
-To iterate over a collection of entries and output their assets, you might normally use code like
-the following:
+1. Clone or download this repository and extract to a `fetch` directory in your Craft plugins directory.
+2. Install the plugin through the Craft control panel.
+
+## Usage
+
+To iterate over a collection of Entries and output their Assets, you would normally use something
+like the following in your template:
 
 ```twig
-{% set entries = craft.entries.section('news').find %}
+{% set entries = craft.entries.section('portfolio') %}
 
 {% for entry in entries %}
 	{% for image in entry.images %}
-		{{ image.id }}
+		<img src="{{ image.getUrl }}" alt="{{ image.title }}">
 	{% endfor %}
 {% endfor %}
 ```
 
-But this code performs n+1 queries - one for the entries, and then another for each entry, that
-grabs the related assets.
+But this code performs n+1 queries - one for the `craft.entries` call, and then another for each
+call to `entry.images`, that fetches the related Assets.
 
-Using this plugin, to fetch all the assets for the `images` field in one go you would instead use:
+Using this plugin, to fetch *all* the Assets for one or more fields in one go you
+would instead use the `craft.fetch.assets` template variable, passing in the Entries you've already
+loaded:
 
 ```twig
-{% set entries  = craft.entries.section('news').find %}
-{% set images   = craft.fetch.assets(entries, 'images') %}
+{% set entries = craft.entries.section('portfolio').find %}
+{% do craft.fetch.assets(entries, 'images, moreImages') %}
+```
 
+This way only three queries are executed - the one to get the initial Entries, another to fetch the
+relations' information, and a final one to fetch all of the related Elements themselves.
+
+Now, when you loop over your Entries, each one has a new `fetched` method that is used to access
+the related Elements. You can pass in one or more field handles to limit the Elements that are
+returned, or leave it out to get everything.
+
+```twig
 {% for entry in entries %}
-	{% if craft.fetch.exists(images, entry.id, 'images') %}
-		{% for image in images[entry.id].images %}
-			{{ image.id }}
-		{% endfor %}
-	{% endif %}
+
+	{% for image in entry.fetched('images, moreImages') %}
+		<img src="{{ image.getUrl }}" alt="{{ image.title }}">
+	{% endfor %}
+
 {% endfor %}
 ```
 
-This way only 3 queries are executed - one for the initial entries, another to fetch the relations
-information, and another to select all the related elements.
+There are template variable methods for all the built-in Craft Element Selector Field Types:
 
-There's also `craft.fetch.entries`, `craft.fetch.categories` etc, that work the same way for the other element types.
+* `craft.fetch.assets`
+* `craft.fetch.categories`
+* `craft.fetch.entries`
+* `craft.fetch.tags`
+* `craft.fetch.users`
 
-The `craft.fetch.exists` function is just a helper that checks for the existance of the Entry and Field IDs in the array supplied as the first argument, so you don't have to use some horrible if statement in twig, like:
+And Fetch works with custom Element Types too:
 
 ```twig
-{% if (entry.id in images|keys) and ('images' in images[entry.id]|keys) and images[entry.id].images|length %}
-    {# there are related elements for this entry #}
-{% endif %}
+{% do craft.fetch.elements('YourPlugin_CustomElementType', entries, 'customElementsField') %}
 ```
 
-# License
+As with the Craft `ElementCriteriaModel`s, you can pass multiple field handles as a comma-separated
+string or a Twig array.
+
+## Full Example
+
+```twig
+{% set entries = craft.entries.section('products').find %}
+{% do craft.fetch.assets(entries, 'productImages') %}
+
+<section class="products">
+	{% for entry in entries %}
+		<article>
+			<h1>{{ entry.title }}</h1>
+
+			{% if entry.fetched('productImages')|length %}
+				<ul class="images">
+					{% for image in entry.fetched('productImages') %}
+						<li><img src="{{ image.getUrl }}" alt="{{ image.title }}"></li>
+					{% endfor %}
+				</ul>
+			{% endif %}
+		</article>
+	{% endfor %}
+</section>
+```
+
+## Changelog
+
+### 1.1.0
+
+* Access related Elements from a nicer `fetched` method dynamically added to the source Elements.
+* Improved documentation and added LICENSE file.
+
+### 1.0.0
+
+* Limit relations by field handles rather than IDs.
+
+### 0.1.0
+
+* Fetch related Elements for multiple source elements by field IDs.
+
+## Todo
+
+* Tests.
+* Make sure it works with localized setups.
+
+## License
 
 MIT
