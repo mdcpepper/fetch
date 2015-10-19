@@ -95,7 +95,36 @@ string or a Twig array.
 </section>
 ```
 
+## Reverse Relations
+
+If you are primarily looping through the “target” elements in the context of a relationship, and want to eager-load their source elements, you set that up the same way you would otherwise, but prefix your field handle with `reverse:`.
+
+```twig
+{% set categories = craft.categories.group('productCategories').find() %}
+{% do craft.fetch.entries(categories, 'reverse:productCategories') %}
+
+<section class="categories">
+    {% for category in categories %}
+        <article>
+            <h1>{{ category.title }}</h1>
+
+            {% if category.fetched('reverse:productCategories')|length %}
+                <ul class="products">
+                    {% for entry in category.fetched('reverse:productCategories') %}
+                        <li>{{ entry.getLink() }}</li>
+                    {% endfor %}
+                </ul>
+            {% endfor %}
+        </article>
+    {% endfor %}
+</section>
+```
+
 ## Changelog
+
+### 1.2.0
+
+* Added support for adding a `reverse:` prefix to field handles, for eager-loading reverse relations.
 
 ### 1.1.0
 
