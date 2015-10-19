@@ -20,9 +20,9 @@ like the following in your template:
 {% set entries = craft.entries.section('portfolio') %}
 
 {% for entry in entries %}
-	{% for image in entry.images %}
-		<img src="{{ image.getUrl }}" alt="{{ image.title }}">
-	{% endfor %}
+    {% for image in entry.images %}
+        <img src="{{ image.url }}" alt="{{ image.title }}">
+    {% endfor %}
 {% endfor %}
 ```
 
@@ -34,7 +34,7 @@ would instead use the `craft.fetch.assets` template variable, passing in the Ent
 loaded:
 
 ```twig
-{% set entries = craft.entries.section('portfolio').find %}
+{% set entries = craft.entries.section('portfolio').find() %}
 {% do craft.fetch.assets(entries, 'images, moreImages') %}
 ```
 
@@ -48,9 +48,9 @@ returned, or leave it out to get everything.
 ```twig
 {% for entry in entries %}
 
-	{% for image in entry.fetched('images, moreImages') %}
-		<img src="{{ image.getUrl }}" alt="{{ image.title }}">
-	{% endfor %}
+    {% for image in entry.fetched('images, moreImages') %}
+        <img src="{{ image.url }}" alt="{{ image.title }}">
+    {% endfor %}
 
 {% endfor %}
 ```
@@ -75,23 +75,23 @@ string or a Twig array.
 ## Full Example
 
 ```twig
-{% set entries = craft.entries.section('products').find %}
+{% set entries = craft.entries.section('products').find() %}
 {% do craft.fetch.assets(entries, 'productImages') %}
 
 <section class="products">
-	{% for entry in entries %}
-		<article>
-			<h1>{{ entry.title }}</h1>
+    {% for entry in entries %}
+        <article>
+            <h1>{{ entry.title }}</h1>
 
-			{% if entry.fetched('productImages')|length %}
-				<ul class="images">
-					{% for image in entry.fetched('productImages') %}
-						<li><img src="{{ image.getUrl }}" alt="{{ image.title }}"></li>
-					{% endfor %}
-				</ul>
-			{% endif %}
-		</article>
-	{% endfor %}
+            {% if entry.fetched('productImages')|length %}
+                <ul class="images">
+                    {% for image in entry.fetched('productImages') %}
+                        <li><img src="{{ image.url }}" alt="{{ image.title }}"></li>
+                    {% endfor %}
+                </ul>
+            {% endif %}
+        </article>
+    {% endfor %}
 </section>
 ```
 
