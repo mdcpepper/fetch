@@ -51,7 +51,7 @@ class FetchService extends BaseApplicationComponent
 		// Perform the first query to get the information from the craft_relations table
 		$relations = $this->_getRelations($sourceElementsById, $fieldHandles, $sourceLocale);
 
-		// Collect the targetIds so we can fetch all the assets in one go later on
+		// Collect the targetIds so we can fetch all the elements in one go later on
 		$targetIds = array_map(function($relation){ return $relation['fetchTargetId']; }, $relations);
 
 		// Perform the second query to fetch all the related elements by their IDs
@@ -61,7 +61,7 @@ class FetchService extends BaseApplicationComponent
 						->locale($sourceLocale)
 						->find();
 
-		// Add each related element to it's source element, using the Fetch_FetchedElementsBehavior
+		// Add each related element to its source element, using the Fetch_FetchedElementsBehavior
 		foreach($relations as &$relation)
 		{
 			$sourceId    = $relation['fetchSourceId'];
@@ -90,7 +90,7 @@ class FetchService extends BaseApplicationComponent
 	 *
 	 * @since 1.0.0
 	 *
-	 * @param array       $sourceElementsByID  An array of source element models, indexed by ID
+	 * @param array       $sourceElementsById  An array of source element models, indexed by ID
 	 * @param array       $fieldHandles
 	 * @param string|null $sourceLocale
 	 *
