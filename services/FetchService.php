@@ -51,8 +51,8 @@ class FetchService extends BaseApplicationComponent
 		// Perform the first query to get the information from the craft_relations table
 		$relations = $this->_getRelations($sourceElementsById, $fieldHandles, $sourceLocale);
 
-		// Collect the targetIds so we can fetch all the assets in one go later on
-		$targetIds = array_map(function($relation){ return $relation['targetId']; }, $relations);
+		// Collect the targetIds so we can fetch all the elements in one go later on
+		$targetIds = array_map(function($relation){ return $relation['fetchTargetId']; }, $relations);
 
 		// Perform the second query to fetch all the related elements by their IDs
 		$elements = craft()->elements->getCriteria($elementType)
@@ -61,12 +61,12 @@ class FetchService extends BaseApplicationComponent
 						->locale($sourceLocale)
 						->find();
 
-		// Add each related element to it's source element, using the Fetch_FetchedElementsBehavior
+		// Add each related element to its source element, using the Fetch_FetchedElementsBehavior
 		foreach($relations as &$relation)
 		{
-			$sourceId    = $relation['sourceId'];
+			$sourceId    = $relation['fetchSourceId'];
 			$fieldHandle = $relation['handle'];
-			$targetId    = $relation['targetId'];
+			$targetId    = $relation['fetchTargetId'];
 			$sortOrder   = ((int) $relation['sortOrder']) - 1;
 
 			$sourceElementsById[$sourceId]->addFetchedElement($elements[$targetId], $fieldHandle, $sortOrder);
@@ -90,7 +90,7 @@ class FetchService extends BaseApplicationComponent
 	 *
 	 * @since 1.0.0
 	 *
-	 * @param array       $sourceElementsByID  An array of source element models, indexed by ID
+	 * @param array       $sourceElementsById  An array of source element models, indexed by ID
 	 * @param array       $fieldHandles
 	 * @param string|null $sourceLocale
 	 *
@@ -100,12 +100,62 @@ class FetchService extends BaseApplicationComponent
 	{
 		$sourceElementIds = array_keys($sourceElementsById);
 
+		// Separate the normal field handles from the reverse handles
+		$reverseFieldHandles = array();
+
+		foreach ($fieldHandles as $i => $fieldHandle)
+		{
+			if (strncmp($fieldHandle, 'reverse:', 8) === 0)
+			{
+				$reverseFieldHandles[] = substr($fieldHandle, 8);
+				unset($fieldHandles[$i]);
+			}
+		}
+
+		return array_merge(
+			$this->_getRelationsInternal($sourceElementIds, $fieldHandles, $sourceLocale, false),
+			$this->_getRelationsInternal($sourceElementIds, $reverseFieldHandles, $sourceLocale, true)
+		);
+	}
+
+	/**
+	 * Returns the results of the database query that fetches all the relations information from the
+	 * `craft_relations` table for the source elements supplied as the first parameter,
+	 * optionally by an array of field handles and a source locale, and for the given reltional direction
+	 *
+	 * @since 1.2.0
+	 *
+	 * @param array       $sourceElementsById  An array of source element models, indexed by ID
+	 * @param array       $fieldHandles
+	 * @param string|null $sourceLocale
+	 * @param boolean     $reverse             Whether reverse relations should be returned
+	 *
+	 * @return DbCommand|null
+	 */
+	private function _getRelationsInternal($sourceElementIds, $fieldHandles, $sourceLocale, $reverse)
+	{
+		if (!$fieldHandles)
+		{
+			return array();
+		}
+
 		$query = craft()->db->createCommand()
+			->select('fieldId, sortOrder')
 			->from('relations relations')
-			->select('fieldId')
-			->addSelect('sourceId, targetId, sortOrder, fields.handle')
-			->join('fields fields', 'fields.id=relations.fieldId')
-			->where(array('in', 'sourceId', $sourceElementIds));
+			->join('fields fields', 'fields.id = relations.fieldId');
+
+		if ($reverse)
+		{
+			$query
+				->addSelect('targetId as fetchSourceId, sourceId as fetchTargetId, CONCAT(\'reverse:\', fields.handle) as handle')
+				->where(array('in', 'targetId', $sourceElementIds));
+		}
+		else
+		{
+			$query
+				->addSelect('sourceId as fetchSourceId, targetId as fetchTargetId, fields.handle')
+				->where(array('in', 'sourceId', $sourceElementIds));
+		}
 
 		if (1 == count($fieldHandles))
 		{
