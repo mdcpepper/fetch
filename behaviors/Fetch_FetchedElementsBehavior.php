@@ -13,6 +13,7 @@ namespace Craft;
 class Fetch_FetchedElementsBehavior extends BaseBehavior
 {
 	protected $_elementsByFieldHandle = array();
+	protected $_sortOrdersByFieldHandle = array();
 
 	/**
 	 * Returns an array of pre-fetched related elements, optionally restricted by one or more
@@ -74,7 +75,11 @@ class Fetch_FetchedElementsBehavior extends BaseBehavior
 			$this->_elementsByFieldHandle[$fieldHandle] = array();
 		}
 
-		$this->_elementsByFieldHandle[$fieldHandle][$sortOrder] = $element;
+		$this->_elementsByFieldHandle[$fieldHandle][] = $element;
+		$this->_sortOrdersByFieldHandle[$fieldHandle][] = $sortOrder;
+
+		// Keep the elements sorted based on the sort order
+		array_multisort($this->_sortOrdersByFieldHandle[$fieldHandle], $this->_elementsByFieldHandle[$fieldHandle]);
 
 		return true;
 	}
