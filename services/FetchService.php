@@ -59,6 +59,7 @@ class FetchService extends BaseApplicationComponent
 						->id($targetIds)
 						->indexBy('id')
 						->locale($sourceLocale)
+						->limit(null)
 						->find();
 
 		// Add each related element to its source element, using the Fetch_FetchedElementsBehavior
