@@ -1,5 +1,9 @@
 # Fetch Craft Plugin
 
+**DEPRECATED:** [Craft 2.6.2771](https://craftcms.com/changelog#build2771) added [eager-loading for elements](https://craftcms.com/docs/templating/eager-loading-elements) to the core, and you should definitely use that over this, which will no longer be maintained.
+
+<hr>
+
 A plugin for basic eager loading of relationships in Craft.
 
 NOTE: This is experimental, hasn't been run in production anywhere, and the actual
