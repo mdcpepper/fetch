@@ -45,7 +45,10 @@ class FetchService extends BaseApplicationComponent
 		// Attach the behavior to each of the source elements
 		foreach($sourceElementsById as $sourceElement)
 		{
-			$sourceElement->attachBehavior('fetched_elements', new Fetch_FetchedElementsBehavior());
+			// Make sure the behavior hasn't already been attached
+			if (!$sourceElement->asa('fetched_elements')) {
+				$sourceElement->attachBehavior('fetched_elements', new Fetch_FetchedElementsBehavior());
+			}
 		}
 
 		// Perform the first query to get the information from the craft_relations table
